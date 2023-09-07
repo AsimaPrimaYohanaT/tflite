@@ -5,32 +5,28 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Canvas
 import android.net.Uri
 import android.os.Build
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
-import android.util.Log
 import android.widget.ImageView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.example.boonganapps.databinding.ActivityMainBinding
-import com.example.boonganapps.ml.Model
+import com.example.boonganapps.ml.Detect
 import com.example.boonganapps.utils.rotateFile
 import com.example.boonganapps.utils.uriToFile
 import org.tensorflow.lite.DataType
-import org.tensorflow.lite.support.image.TensorImage
 import org.tensorflow.lite.support.tensorbuffer.TensorBuffer
 import java.io.File
 import java.nio.ByteBuffer
-import java.nio.ByteOrder
 
 class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
-
     private var getFile: File? = null
-    private val imgSize = 640
 
     override fun onRequestPermissionsResult(
         requestCode: Int,
@@ -67,60 +63,78 @@ class MainActivity : AppCompatActivity() {
             )
         }
 
-        val image = binding.previewImageView
+
         binding.apply {
             cameraXButton.setOnClickListener { startCameraX() }
             galleryButton.setOnClickListener { startGallery() }
             predictionButton.setOnClickListener {
-                val bitmap = imageViewToBitmap(image) // Convert ImageView to Bitmap
-                doInference(bitmap)
+                predict()
             }
         }
     }
+    private fun predict() {
+        val input = binding.previewImageView
 
-    fun imageViewToBitmap(imageView: ImageView): Bitmap {
-        imageView.isDrawingCacheEnabled = true
-        val bitmap = Bitmap.createBitmap(imageView.drawingCache)
-        imageView.isDrawingCacheEnabled = false
+        val model = Detect.newInstance(this)
+
+        val modelInputSize = 320
+
+        val labels =  application.assets.open("label.txt").bufferedReader().readLines()
+        val inputBuffer = imageViewToByteBuffer(input, modelInputSize)
+
+        val inputFeature0 = TensorBuffer.createFixedSize(intArrayOf(1, modelInputSize, modelInputSize, 3), DataType.FLOAT32)
+        inputFeature0.loadBuffer(inputBuffer)
+
+        val outputs = model.process(inputFeature0)
+        val outputFeature0 = outputs.outputFeature0AsTensorBuffer
+        val outputFeature1 = outputs.outputFeature1AsTensorBuffer
+        val outputFeature2 = outputs.outputFeature2AsTensorBuffer
+        val outputFeature3 = outputs.outputFeature3AsTensorBuffer
+
+        var maxIdx = 0
+        outputFeature0.floatArray.forEachIndexed { idx, fl ->
+            if (fl > outputFeature3.floatArray[maxIdx]) {
+                maxIdx = idx
+            }
+        }
+        name = labels[maxIdx]
+        binding.textView.text = name
+
+    }
+
+    private fun imageViewToByteBuffer(imageView: ImageView, modelInputSize: Int): ByteBuffer {
+
+        val bitmap = imageViewToBitmap(imageView)
+        val resizedBitmap = Bitmap.createScaledBitmap(bitmap, modelInputSize, modelInputSize, true)
+        val byteBuffer = ByteBuffer.allocateDirect(1 * modelInputSize * modelInputSize * 3 * 4) // 3 channels (RGB) * 4 bytes per float
+        byteBuffer.order(java.nio.ByteOrder.nativeOrder())
+        val intValues = IntArray(modelInputSize * modelInputSize)
+        resizedBitmap.getPixels(intValues, 0, resizedBitmap.width, 0, 0, resizedBitmap.width, resizedBitmap.height)
+
+        var pixel = 0
+        for (i in 0 until modelInputSize) {
+            for (j in 0 until modelInputSize) {
+                val value = intValues[pixel++]
+                byteBuffer.putFloat(((value shr 16 and 0xFF) - 127.5f) / 127.5f)
+                byteBuffer.putFloat(((value shr 8 and 0xFF) - 127.5f) / 127.5f)
+                byteBuffer.putFloat(((value and 0xFF) - 127.5f) / 127.5f)
+            }
+        }
+        byteBuffer.rewind()
+
+        return byteBuffer
+    }
+
+    private fun imageViewToBitmap(imageView: ImageView): Bitmap {
+        val drawable = imageView.drawable
+        val bitmap = Bitmap.createBitmap(imageView.width, imageView.height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        drawable?.setBounds(0, 0, canvas.width, canvas.height)
+        drawable?.draw(canvas)
         return bitmap
     }
 
-    private fun doInference(bmp: Bitmap) : String{
-        val scaledBmp = Bitmap.createScaledBitmap(bmp, imgSize, imgSize, false)
-        return outputGenerator(scaledBmp)
-    }
 
-    private fun outputGenerator(bitmap: Bitmap):String{
-        val model = Model.newInstance(this)
-
-
-        val inputFeature0 = TensorBuffer.createFixedSize(intArrayOf(1, 640, 640, 3), DataType.FLOAT32)
-        val byteBuffer = ByteBuffer.allocateDirect(4 * imgSize * imgSize * 3)
-        byteBuffer.order(ByteOrder.nativeOrder())
-        val intValues = IntArray(imgSize * imgSize)
-        bitmap.getPixels(intValues, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
-        var pixel = 0
-
-        for (i in 0 until imgSize) {
-            for (j in 0 until imgSize) {
-                val `val` = intValues[pixel++] // RGB
-                byteBuffer.putFloat((`val` shr 16 and 0xFF) * (1f / 255))
-                byteBuffer.putFloat((`val` shr 8 and 0xFF) * (1f / 255))
-                byteBuffer.putFloat((`val` and 0xFF) * (1f / 255))
-            }
-        }
-        inputFeature0.loadBuffer(byteBuffer)
-
-    // Runs model inference and gets result.
-        val outputs = model.process(inputFeature0)
-            .outputAsCategoryList
-//
-//        val output = outputs[0]
-
-//        Log.e("INIIIIIIIIIII",outputs.toString())
-        binding.textView.text = outputs.toString()
-
-    }
     private fun startCameraX() {
         val intent = Intent(this, CameraActivity::class.java)
         launcherIntentCameraX.launch(intent)
@@ -160,19 +174,17 @@ class MainActivity : AppCompatActivity() {
         if (result.resultCode == RESULT_OK) {
             val selectedImg = result.data?.data as Uri
             selectedImg.let { uri ->
-                val bitmap = BitmapFactory.decodeStream(contentResolver.openInputStream(uri))
                 val myFile = uriToFile(uri, this@MainActivity)
                 getFile = myFile
                 binding.previewImageView.setImageURI(uri)
-                outputGenerator(bitmap)
             }
         }
     }
 
     companion object {
         const val CAMERA_X_RESULT = 200
-
         private val REQUIRED_PERMISSIONS = arrayOf(Manifest.permission.CAMERA)
         private const val REQUEST_CODE_PERMISSIONS = 10
+        var name:String? = null
     }
 }
