@@ -91,14 +91,26 @@ class MainActivity : AppCompatActivity() {
         val outputFeature2 = outputs.outputFeature2AsTensorBuffer
         val outputFeature3 = outputs.outputFeature3AsTensorBuffer
 
+        val confidence = outputFeature0.floatArray
         var maxIdx = 0
         outputFeature0.floatArray.forEachIndexed { idx, fl ->
             if (fl > outputFeature3.floatArray[maxIdx]) {
                 maxIdx = idx
             }
         }
+
+        var maxPos = 0
+        var maxConfidence = -10f
+        for (i in confidence.indices) {
+            if (confidence[i] > maxConfidence) {
+                maxConfidence = confidence[i]
+                maxPos = i
+            }
+        }
+        val resultConfidence = confidence[0]
+        val formattedConfidence = String.format("%.2f", resultConfidence)
         name = labels[maxIdx]
-        binding.textView.text = name
+        binding.textView.text = "nama: ${name}, confidence: ${formattedConfidence}"
 
     }
 
