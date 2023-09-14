@@ -21,6 +21,7 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.example.boonganapps.databinding.ActivityMainBinding
 import com.example.boonganapps.ml.Detect10
+import com.example.boonganapps.ml.DetectMetadata10soal
 import com.example.boonganapps.ml.Detectv14Metadata
 
 import com.example.boonganapps.utils.rotateFile
@@ -83,7 +84,7 @@ class MainActivity : AppCompatActivity() {
         val bitmap: Bitmap = (input.drawable as BitmapDrawable).bitmap
         val imageWithBoundingBox = bitmap.copy(Bitmap.Config.ARGB_8888, true)
 
-        val model = Detect10.newInstance(this)
+        val model = DetectMetadata10soal.newInstance(this)
         val image = TensorImage.fromBitmap(bitmap)
         val outputs = model.process(image)
 
@@ -97,7 +98,7 @@ class MainActivity : AppCompatActivity() {
             val _bbox = _obj.locationAsRectF
             val _class = _obj.categoryAsString
 
-            var minConf = 0.8f
+            var minConf = 0.9f
 
             if (_conf > minConf) {
                 val nunitoFont = Typeface.createFromAsset(assets, "fonts/Nunito/static/Nunito-Regular.ttf")
