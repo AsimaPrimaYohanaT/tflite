@@ -8,6 +8,7 @@ import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.Typeface
 import android.graphics.drawable.BitmapDrawable
 import android.net.Uri
 import android.os.Build
@@ -82,13 +83,6 @@ class MainActivity : AppCompatActivity() {
         val bitmap: Bitmap = (input.drawable as BitmapDrawable).bitmap
         val imageWithBoundingBox = bitmap.copy(Bitmap.Config.ARGB_8888, true)
 
-        val paint = Paint().apply {
-            color = Color.RED
-            style = Paint.Style.STROKE
-            strokeWidth = 4.0f
-            textSize = 90f
-        }
-
         val model = Detect10.newInstance(this)
         val image = TensorImage.fromBitmap(bitmap)
         val outputs = model.process(image)
@@ -98,17 +92,33 @@ class MainActivity : AppCompatActivity() {
         val objectInfoList = mutableListOf<Pair<Float, String>>()
 
         for (i in 0 until outputs.detectionResultList.size) {
-            val obj = outputs.detectionResultList[i]
-            val conf = obj.scoreAsFloat
-            val bbox = obj.locationAsRectF
-            val label = obj.categoryAsString
+            val _obj = outputs.detectionResultList[i]
+            val _conf = _obj.scoreAsFloat
+            val _bbox = _obj.locationAsRectF
+            val _class = _obj.categoryAsString
 
-            var minConf = 0.5f
+            var minConf = 0.8f
 
-            if (conf > minConf) {
-                canvas.drawRect(bbox, paint)
-                canvas.drawText("$label: %.2f".format(conf), bbox.left, bbox.top - 10, paint)
-                val objectInfo = Pair(bbox.right, "$label: %.2f".format(conf))
+            if (_conf > minConf) {
+                val nunitoFont = Typeface.createFromAsset(assets, "fonts/Nunito/static/Nunito-Regular.ttf")
+
+                val paint = Paint().apply {
+                    typeface = nunitoFont
+                    color = Color.RED
+                    style = Paint.Style.STROKE
+                    strokeWidth = 4.0f
+                }
+                canvas.drawRect(_bbox, paint)
+
+                paint.color = Color.WHITE
+                paint.style = Paint.Style.FILL
+                paint.textSize = _bbox.width() * 0.06f
+
+                val text = "$_class: %.2f".format(_conf)
+
+                canvas.drawText(text, _bbox.left, _bbox.top - 10, paint)
+
+                val objectInfo = Pair(_bbox.right, text)
                 objectInfoList.add(objectInfo)
             }
         }
