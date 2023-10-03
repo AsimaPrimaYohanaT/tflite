@@ -22,7 +22,6 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.example.boonganapps.databinding.ActivityMainBinding
 import com.example.boonganapps.ml.ModelNew
-import com.example.boonganapps.ml.ModelTf
 import com.example.boonganapps.utils.rotateFile
 import com.example.boonganapps.utils.uriToFile
 import org.tensorflow.lite.DataType
