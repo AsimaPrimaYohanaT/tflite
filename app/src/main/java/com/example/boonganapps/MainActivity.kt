@@ -6,19 +6,22 @@ import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
+import android.graphics.ColorMatrix
+import android.graphics.ColorMatrixColorFilter
+import android.graphics.Paint
 import android.graphics.drawable.BitmapDrawable
 import android.net.Uri
 import android.os.Build
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
+import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.example.boonganapps.databinding.ActivityMainBinding
-import com.example.boonganapps.ml.Detect
-import com.example.boonganapps.ml.Model
+import com.example.boonganapps.ml.ModelNew
 import com.example.boonganapps.ml.ModelTf
 import com.example.boonganapps.utils.rotateFile
 import com.example.boonganapps.utils.uriToFile
@@ -79,88 +82,57 @@ class MainActivity : AppCompatActivity() {
     private fun predict() {
         val input = binding.previewImageView
 
-//
-        val labels =  application.assets.open("label.txt").bufferedReader().readLines()
+// Set the desired width and height
+        val desiredWidth = 320
+        val desiredHeight = 320
 
+// Create LayoutParams for the ImageView
+        val layoutParams = ViewGroup.LayoutParams(desiredWidth, desiredHeight)
 
+// Apply the LayoutParams to the ImageView
+        input.layoutParams = layoutParams
 
-// Convert ImageView to Bitmap
-        val bitmap: Bitmap? = (input.drawable as? BitmapDrawable)?.bitmap
+// Optionally, you can set the scale type to fit the image within the ImageView
+        input.scaleType = ImageView.ScaleType.FIT_CENTER
 
-        val model = Model.newInstance(this)
+        val bitmap: Bitmap = (input.drawable as BitmapDrawable).bitmap
+        val model = ModelNew.newInstance(this)
 
-// Creates inputs for reference.
-        val image = TensorImage.fromBitmap(bitmap)
+// Convert the image to grayscale
+        val grayscaleBitmap = convertToGrayscale(bitmap, 320, 320)
 
-// Runs model inference and gets result.
+        val resizedBitmap = Bitmap.createScaledBitmap(grayscaleBitmap, desiredWidth, desiredHeight, true)
+
+        val image = TensorImage.fromBitmap(resizedBitmap)
+
         val outputs = model.process(image)
         val detectionResult = outputs.detectionResultList.get(0)
 
-// Gets result from DetectionResult.
-        val location = detectionResult.scoreAsFloat;
-        val category = detectionResult.locationAsRectF;
-        val score = detectionResult.categoryAsString;
-
-        binding.textView.text = score.toString()
-// Releases model resources if no longer used.
+        val location = detectionResult.scoreAsFloat
+        val category = detectionResult.locationAsRectF
+        val score = detectionResult.categoryAsString
         model.close()
 
-//        model.close()
-//        val inputFeature0 = TensorBuffer.createFixedSize(intArrayOf(1, modelInputSize, modelInputSize, 3), DataType.FLOAT32)
-//        inputFeature0.loadBuffer(inputBuffer)
-//
-//        val outputs = model.process(inputFeature0)
-//        val outputFeature0 = outputs.outputFeature0AsTensorBuffer
-//        val outputFeature1 = outputs.outputFeature1AsTensorBuffer
-//        val outputFeature2 = outputs.outputFeature2AsTensorBuffer
-//        val outputFeature3 = outputs.outputFeature3AsTensorBuffer
 
-//        val confidence = outputFeature0.floatArray
-//        var maxIdx = 0
-//        outputFeature0.floatArray.forEachIndexed { idx, fl ->
-//            if (fl > outputFeature3.floatArray[maxIdx]) {
-//                maxIdx = idx
-//            }
-//        }
-//
-//        var maxPos = 0
-//        var maxConfidence = -10f
-//        for (i in confidence.indices) {
-//            if (confidence[i] > maxConfidence) {
-//                maxConfidence = confidence[i]
-//                maxPos = i
-//            }
-//        }
-//        val resultConfidence = confidence[0]
-//        val formattedConfidence = String.format("%.2f", resultConfidence)
-//        name = labels[maxIdx]
-//        binding.textView.text = outputFeature0.toString()
-//            "nama: ${name}, confidence: ${formattedConfidence}"
+        binding.previewImageView.setImageBitmap(resizedBitmap)
+        binding.textView.text = location.toString()
 
     }
 
-    private fun imageViewToByteBuffer(imageView: ImageView, modelInputSize: Int): ByteBuffer {
-
-        val bitmap = imageViewToBitmap(imageView)
-        val resizedBitmap = Bitmap.createScaledBitmap(bitmap, modelInputSize, modelInputSize, true)
-        val byteBuffer = ByteBuffer.allocateDirect(1 * modelInputSize * modelInputSize * 3 * 4) // 3 channels (RGB) * 4 bytes per float
-        byteBuffer.order(java.nio.ByteOrder.nativeOrder())
-        val intValues = IntArray(modelInputSize * modelInputSize)
-        resizedBitmap.getPixels(intValues, 0, resizedBitmap.width, 0, 0, resizedBitmap.width, resizedBitmap.height)
-
-        var pixel = 0
-        for (i in 0 until modelInputSize) {
-            for (j in 0 until modelInputSize) {
-                val value = intValues[pixel++]
-                byteBuffer.putFloat(((value shr 16 and 0xFF) - 127.5f) / 127.5f)
-                byteBuffer.putFloat(((value shr 8 and 0xFF) - 127.5f) / 127.5f)
-                byteBuffer.putFloat(((value and 0xFF) - 127.5f) / 127.5f)
-            }
-        }
-        byteBuffer.rewind()
-
-        return byteBuffer
+    fun convertToGrayscale(inputBitmap: Bitmap, targetWidth: Int, targetHeight: Int): Bitmap {
+        val width = inputBitmap.width
+        val height = inputBitmap.height
+        val grayscaleBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(grayscaleBitmap)
+        val paint = Paint()
+        val colorMatrix = ColorMatrix()
+        colorMatrix.setSaturation(0f) // Set saturation to 0 for grayscale
+        val colorMatrixFilter = ColorMatrixColorFilter(colorMatrix)
+        paint.colorFilter = colorMatrixFilter
+        canvas.drawBitmap(inputBitmap, 0f, 0f, paint)
+        return grayscaleBitmap
     }
+
 
     private fun imageViewToBitmap(imageView: ImageView): Bitmap {
         val drawable = imageView.drawable
