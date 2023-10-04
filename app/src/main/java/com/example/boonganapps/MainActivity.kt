@@ -6,6 +6,7 @@ import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.ColorMatrix
 import android.graphics.ColorMatrixColorFilter
 import android.graphics.Paint
@@ -21,6 +22,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.example.boonganapps.databinding.ActivityMainBinding
+import com.example.boonganapps.ml.DetectMD
 import com.example.boonganapps.ml.ModelNew
 import com.example.boonganapps.utils.rotateFile
 import com.example.boonganapps.utils.uriToFile
@@ -81,41 +83,60 @@ class MainActivity : AppCompatActivity() {
     private fun predict() {
         val input = binding.previewImageView
 
-// Set the desired width and height
         val desiredWidth = 320
         val desiredHeight = 320
 
-// Create LayoutParams for the ImageView
         val layoutParams = ViewGroup.LayoutParams(desiredWidth, desiredHeight)
 
-// Apply the LayoutParams to the ImageView
         input.layoutParams = layoutParams
 
-// Optionally, you can set the scale type to fit the image within the ImageView
         input.scaleType = ImageView.ScaleType.FIT_CENTER
 
         val bitmap: Bitmap = (input.drawable as BitmapDrawable).bitmap
-        val model = ModelNew.newInstance(this)
+        val model = DetectMD.newInstance(this)
 
-// Convert the image to grayscale
         val grayscaleBitmap = convertToGrayscale(bitmap, 320, 320)
 
         val resizedBitmap = Bitmap.createScaledBitmap(grayscaleBitmap, desiredWidth, desiredHeight, true)
 
         val image = TensorImage.fromBitmap(resizedBitmap)
-
         val outputs = model.process(image)
-        val detectionResult = outputs.detectionResultList.get(0)
 
-        val location = detectionResult.scoreAsFloat
-        val category = detectionResult.locationAsRectF
-        val score = detectionResult.categoryAsString
+        val imageWithBoundingBox = bitmap.copy(Bitmap.Config.ARGB_8888, true)
+
+        val paint = Paint().apply {
+            color = Color.RED
+            style = Paint.Style.STROKE
+            strokeWidth = 4.0f
+            textSize = 90f
+        }
+
+        val canvas = Canvas(imageWithBoundingBox)
+        val objectInfoList = mutableListOf<Pair<Float, String>>()
+
+
+        for (i in 0 until outputs.detectionResultList.size) {
+            val obj = outputs.detectionResultList[i]
+            val conf = obj.scoreAsFloat
+            val bbox = obj.locationAsRectF
+            val label = obj.categoryAsString
+
+            var minConf = 0.5f
+
+            if (conf > minConf) {
+                canvas.drawRect(bbox, paint)
+                canvas.drawText("$label: %.2f".format(conf), bbox.left, bbox.top - 10, paint)
+                val objectInfo = Pair(bbox.right, "$label: %.2f".format(conf))
+                objectInfoList.add(objectInfo)
+            }
+        }
+
+        objectInfoList.sortByDescending { it.first }
+
+        val labelsAndConf = objectInfoList.joinToString(", ") { it.second }
+        binding.textView.text = labelsAndConf
+        binding.previewImageView.setImageBitmap(imageWithBoundingBox)
         model.close()
-
-
-        binding.previewImageView.setImageBitmap(resizedBitmap)
-        binding.textView.text = location.toString()
-
     }
 
     fun convertToGrayscale(inputBitmap: Bitmap, targetWidth: Int, targetHeight: Int): Bitmap {
