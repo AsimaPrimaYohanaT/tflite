@@ -95,14 +95,14 @@ class MainActivity : AppCompatActivity() {
         val bitmap: Bitmap = (input.drawable as BitmapDrawable).bitmap
         val model = DetectMD.newInstance(this)
 
-        val grayscaleBitmap = convertToGrayscale(bitmap, 320, 320)
+        val grayscaleBitmap = convertToGrayscale(bitmap, desiredWidth, desiredHeight)
 
         val resizedBitmap = Bitmap.createScaledBitmap(grayscaleBitmap, desiredWidth, desiredHeight, true)
 
         val image = TensorImage.fromBitmap(resizedBitmap)
         val outputs = model.process(image)
 
-        val imageWithBoundingBox = bitmap.copy(Bitmap.Config.ARGB_8888, true)
+        val imageWithBoundingBox = resizedBitmap.copy(Bitmap.Config.ARGB_8888, true)
 
         val paint = Paint().apply {
             color = Color.RED
