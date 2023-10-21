@@ -22,8 +22,12 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.example.boonganapps.databinding.ActivityMainBinding
-import com.example.boonganapps.ml.DetectMD
-import com.example.boonganapps.ml.ModelNew
+import com.example.boonganapps.ml.AjikPisah189
+import com.example.boonganapps.ml.AutoModel640GrayNoAug
+import com.example.boonganapps.ml.AutoModel640GrayNoAug20RibuNumSteps
+import com.example.boonganapps.ml.DetectPisah189
+import com.example.boonganapps.ml.ModelElPisah
+import com.example.boonganapps.ml.SoalOptMd
 import com.example.boonganapps.utils.rotateFile
 import com.example.boonganapps.utils.uriToFile
 import org.tensorflow.lite.DataType
@@ -83,9 +87,9 @@ class MainActivity : AppCompatActivity() {
     private fun predict() {
         val input = binding.previewImageView
 
-        val desiredWidth = 320
-        val desiredHeight = 320
-
+        val desiredWidth = 640
+        val desiredHeight = 640
+    
         val layoutParams = ViewGroup.LayoutParams(desiredWidth, desiredHeight)
 
         input.layoutParams = layoutParams
@@ -93,7 +97,7 @@ class MainActivity : AppCompatActivity() {
         input.scaleType = ImageView.ScaleType.FIT_CENTER
 
         val bitmap: Bitmap = (input.drawable as BitmapDrawable).bitmap
-        val model = DetectMD.newInstance(this)
+        val model = AutoModel640GrayNoAug20RibuNumSteps.newInstance(this)
 
         val grayscaleBitmap = convertToGrayscale(bitmap, desiredWidth, desiredHeight)
 
